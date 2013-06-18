@@ -15,14 +15,28 @@
 #include "memory_manager.h"
 
 int memory_access(int addr, int *data, int type) {
-  /* Seu codigo comeca aqui :) */
+	/* Seu codigo comeca aqui :) */
 
+	int ret;
 	unsigned char bytes[4];
 	int i;
 	int num = *data;
 
 	if(type == 0)
+	{
 		printf("Leitura....\n");
+
+		//teste
+		printf("gravando em L1..\n");
+		cache_L1[0].blocks[0].words[0] = 10;
+		cache_L1[0].blocks[0].tag = 3;
+
+
+		ret = read_from_l1(addr);
+
+	}
+
+
 	if(type ==1)
 	{
 		printf("Escrita..\n");
@@ -41,5 +55,61 @@ int memory_access(int addr, int *data, int type) {
 
 	}
 
-  return -1;
+
+	return -1;
+}
+
+int read_from_l1(int addr)
+{
+	//unsigned char tag[3];
+	int set, tag, word_offset;
+	int ret, ret_tag, ret_set, ret_block, ret_offset;
+
+
+	//obtem tag, set e word_offset
+	tag = addr >> 5;
+	set = (addr & 24) >> 3;
+	word_offset = (addr & 0x04) >> 2;
+
+
+	//pode procurar a palavra toda
+	if(search_tag_and_set_on_l1(tag, set) == 1)
+	{
+		if(ret_set == set)
+		{
+			//procurar word
+			return cache_L1[set].blocks[0].words[0];
+		}
+
+	}
+
+
+
+	printf("tag vale %d set vale %d word offset vale %d\n", tag,set, word_offset);
+
+	return 0;
+
+
+
+}
+
+int search_tag_and_set_on_l1(int tag, int set)
+{
+
+	int b;
+
+
+	for(b = 0; b < BLOCKS_L1; b++)
+	{
+		if(cache_L1[set].blocks[b].tag == tag)
+		{
+			return 1;
+		}
+	}
+
+
+
+	return 0;
+
+
 }
