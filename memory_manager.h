@@ -21,6 +21,11 @@
 #define WORDS_L1 2        // Quantidade de palavras da cache L1
 #define WORDS_L2 4        // Quantidade de palavras da cache L2
 
+//constantes que serao usadas no acesso à memoria
+#define L1 1
+#define L2 2
+#define RAM 3
+
 
 typedef struct {
   int valid;              // bit de validade
@@ -39,6 +44,8 @@ cache* cache_L1;
 cache* cache_L2;
 
 int memory_access(int addr, int *data, int type);
+int readMemory(int addr, int *data, int cachelevel);
+
 int write_on_L1(int addr);
 int search_tag_and_set_on_l1(int tag, int set);
 
