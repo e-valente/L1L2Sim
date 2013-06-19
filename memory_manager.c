@@ -29,22 +29,27 @@ int memory_access(int addr, int *data, int type) {
 		/*escrevendo valor na cache pra ser
 		 * testado
 		 */
+		cache_L1[0].blocks[0].tag = 25;
+		cache_L1[0].blocks[0].words[0] = 14;
 
-		cache_L1[1].blocks[0].tag = 6;
-		cache_L1[1].blocks[0].words[0] = 14;
+		cache_L2[2].blocks[0].tag = 6;
+		cache_L2[2].blocks[0].words[0] = 140;
+		//fim do teste
+
+
+		//tenta ler em L1
 		ret = readMemory(addr, data, L1);
 
+		//se sucesso ao ler em L1
 		if(ret == 1){
 			printf("\ndata vale %d\n", *data);
 			return 1;
 		}
-		//teste
-		printf("gravando em L1..\n");
-		cache_L1[0].blocks[0].words[0] = 10;
-		cache_L1[0].blocks[0].tag = 3;
 
 
-		ret = read_from_l1(addr);
+		//tenta ler em L2
+		//ret = readMemory(addr, data, L2);
+
 
 	}
 
@@ -60,10 +65,12 @@ int memory_access(int addr, int *data, int type) {
 			num >>= 8;
 
 		}
-		memory[0] = bytes[3];
-		memory[1] = bytes[2];
-		memory[2] = bytes[1];
-		memory[3] = bytes[0];
+
+		i = addr * 4;
+		memory[i] = bytes[3];
+		memory[1+1] = bytes[2];
+		memory[i+2] = bytes[1];
+		memory[i+3] = bytes[0];
 
 	}
 
@@ -75,16 +82,18 @@ int memory_access(int addr, int *data, int type) {
 int readMemory(int addr, int *data, int cachelevel)
 {
 	int set, tag, word_offset;
-	int i;
+	int i, ret;
 
 	//lendo em L1
 	if(cachelevel == L1)
 	{
 		printf("buscando em L1");
 		//obtem tag, set e word_offset
-		tag = addr >> 5;
-		set = (addr & 24) >> 3;
-		word_offset = (addr & 0x04) >> 2;
+		tag = addr >> 3;
+		set = (addr & 0x06) >> 1;
+		word_offset = addr & 0x01;
+
+		//printf("tag %d set %d word_offset: %d\n", tag, set, word_offset);
 
 		//procura a tag no conjunto
 		for(i = 0; i < BLOCKS_L1; i++)
@@ -99,6 +108,27 @@ int readMemory(int addr, int *data, int cachelevel)
 		}
 
 
+		//se nao tiver em L1, buscamos em L2 e gravamos em L1
+		ret = readMemory(addr, data, L2);
+
+		if(ret == 1)
+		{
+			printf("achei em L2\n");
+			printf("preciso escrever em L1\n");
+			//pra escrever, terei que usar
+			//a funcao que criarei na escrita
+
+		}
+
+		//se nao está em L2, lemos da RAM e gravamos em L2
+		if(ret == 0)
+		{
+			ret = readMemory(addr, data, RAM);
+
+		}
+
+
+
 		return 1;
 
 	}
@@ -106,6 +136,25 @@ int readMemory(int addr, int *data, int cachelevel)
 	//lendo em L2
 	if(cachelevel == L2)
 	{
+		printf("buscando em L2\n");
+		//obtem tag, set e word_offset
+		tag = addr >> 5;
+		set = (addr & 0x1c) >> 2;
+		word_offset = addr & 0x03;
+
+		printf("\nEm L2 tag %d set %d word_offset: %d\n", tag, set, word_offset);
+
+		//procura a tag no conjunto
+		for(i = 0; i < BLOCKS_L2; i++)
+		{
+			if(cache_L2[set].blocks[i].tag == tag)
+			{
+				//escrevemos em data o valor da word desejada
+				*data = cache_L2[set].blocks[i].words[word_offset];
+
+				return 1;
+			}
+		}
 
 	}
 
@@ -118,59 +167,5 @@ int readMemory(int addr, int *data, int cachelevel)
 
 
 	return -1;
-
-}
-int read_from_l1(int addr)
-{
-	//unsigned char tag[3];
-	int set, tag, word_offset;
-	int ret, ret_tag, ret_set, ret_block, ret_offset;
-
-
-	//obtem tag, set e word_offset
-	tag = addr >> 5;
-	set = (addr & 24) >> 3;
-	word_offset = (addr & 0x04) >> 2;
-
-
-	//pode procurar a palavra toda
-	if(search_tag_and_set_on_l1(tag, set) == 1)
-	{
-		if(ret_set == set)
-		{
-			//procurar word
-			return cache_L1[set].blocks[0].words[0];
-		}
-
-	}
-
-
-
-	printf("tag vale %d set vale %d word offset vale %d\n", tag,set, word_offset);
-
-	return 0;
-
-
-
-}
-
-int search_tag_and_set_on_l1(int tag, int set)
-{
-
-	int b;
-
-
-	for(b = 0; b < BLOCKS_L1; b++)
-	{
-		if(cache_L1[set].blocks[b].tag == tag)
-		{
-			return 1;
-		}
-	}
-
-
-
-	return 0;
-
 
 }

@@ -46,7 +46,5 @@ cache* cache_L2;
 int memory_access(int addr, int *data, int type);
 int readMemory(int addr, int *data, int cachelevel);
 
-int write_on_L1(int addr);
-int search_tag_and_set_on_l1(int tag, int set);
 
 #endif
