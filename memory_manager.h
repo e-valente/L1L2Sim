@@ -45,6 +45,7 @@ cache* cache_L2;
 
 int memory_access(int addr, int *data, int type);
 int readMemory(int addr, int *data, int cachelevel);
+int writeMemory(int addr, int *data, int cachelevel);
 
 
 #endif

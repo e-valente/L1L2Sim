@@ -34,6 +34,7 @@ int memory_access(int addr, int *data, int type) {
 
 		cache_L2[2].blocks[0].tag = 6;
 		cache_L2[2].blocks[0].words[0] = 140;
+
 		//fim do teste
 
 
@@ -57,6 +58,10 @@ int memory_access(int addr, int *data, int type) {
 	if(type ==1)
 	{
 		printf("Escrita..\n");
+
+		//escreve em memória cache,
+		//iniciando pelo nível L1
+		ret = writeMemory(addr, data, L1);
 
 		for(i = 0; i < 4; i++)
 		{
@@ -169,3 +174,116 @@ int readMemory(int addr, int *data, int cachelevel)
 	return -1;
 
 }
+
+
+
+int writeMemory(int addr, int *data, int cachelevel)
+{
+	int set, tag, word_offset;
+	int i, ret;
+	unsigned char word_array[4];
+
+	//escreve em L1
+	if(cachelevel == L1)
+	{
+		//obtem tag, set e word_offset
+		tag = addr >> 3;
+		set = (addr & 0x06) >> 1;
+		word_offset = addr & 0x01;
+
+		//printf("tag %d set %d word_offset: %d\n", tag, set, word_offset);
+
+		//procura a tag no conjunto
+		for(i = 0; i < BLOCKS_L1; i++)
+		{
+			//caso esteja em L1
+			if(cache_L1[set].blocks[i].tag == tag)
+			{
+				//escrevemos a palavra desejada em L1
+				cache_L1[set].blocks[i].words[word_offset] = *data;
+
+				//L1 é write through, portanto devemos
+				//imediatamente escrever em L2
+				ret = writeMemory(addr, data, L2);
+				return ret;
+			}
+		}
+
+
+		//se nao tiver, temos que carregar de de L2
+		//ret = readMemory(addr, data, L2);
+	}
+
+
+
+
+	/*Escreve no nível L2*/
+	if(cachelevel == L2)
+	{
+		//obtem tag, set e word_offset
+		tag = addr >> 5;
+		set = (addr & 0x1c) >> 2;
+		word_offset = addr & 0x03;
+
+		//printf("tag %d set %d word_offset: %d\n", tag, set, word_offset);
+
+		//procura a tag no conjunto
+		for(i = 0; i < BLOCKS_L2; i++)
+		{
+			//caso esteja em L1
+			if(cache_L2[set].blocks[i].tag == tag)
+			{
+				//escrevemos a palavra desejada em L2
+				cache_L2[set].blocks[i].words[word_offset] = *data;
+
+				//testa gravacao WT na ram
+				return writeMemory(addr, data, RAM);
+
+				return 1;
+
+			}
+		}
+
+
+		//se bloco nao estiver em L2, devemos carrega-lo
+		//da ram e depois escrever nele
+	}
+
+
+
+
+	/*Escreve word na RAM*/
+	if(cachelevel == RAM)
+	{
+		/*precisamos dividir a word (*data)
+		 * em 4 bytes. Cada byte será armazenado no vetor
+		 * word_array
+		 */
+
+		for(i = 0; i < 4; i++)
+		{
+			word_array[i] = *data & 0xFF;
+			printf("byte %d = %d\n", i, word_array[i]);
+			*data >>= 8;
+
+		}
+
+		//i recebe o offset da word (a cada 4 bytes temos 1 word)
+		i = addr * 4;
+
+		/*armazena byte na memória  (em big endian)*/
+
+		memory[i] = word_array[3];
+		memory[1+1] = word_array[2];
+		memory[i+2] = word_array[1];
+		memory[i+3] = word_array[0];
+
+		return 1;
+
+	}
+
+
+	return -1;
+
+}
+
