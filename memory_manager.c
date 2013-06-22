@@ -107,13 +107,14 @@ int readMemory(int addr, int *data, int cachelevel)
 			{
 				//escrevemos em data o valor da word desejada
 				*data = cache_L1[set].blocks[i].words[word_offset];
-
 				return 1;
 			}
 		}
 
 
-		//se nao tiver em L1, buscamos em L2 e gravamos em L1
+		//se a word nao estiver em L1,
+		//buscamos em L2 (carregamos o bloco) e gravamos em L1
+		loadSetOfWordsOnCache(addr, L1);
 		ret = readMemory(addr, data, L2);
 
 		if(ret == 1)
@@ -284,6 +285,167 @@ int writeMemory(int addr, int *data, int cachelevel)
 
 
 	return -1;
+
+}
+
+int loadSetOfWordsOnCache(int addr, int cachelevel)
+{
+	int set, tag, word_offset;
+	int i, ret;
+	unsigned char word_array[4];
+
+
+	//carrega de L2 para L1
+	if(cachelevel == L1)
+	{
+		//verifica se o conjunto está em L2
+		//caso nao esteja, deve ser carregada em L2
+		//obtem tag, set e word_offset
+		tag = addr >> 5;
+		set = (addr & 0x1c) >> 2;
+		word_offset = addr & 0x03;
+
+
+		for(i = 0; i < BLOCKS_L2; i++)
+		{
+			//tag esta em L2 -> carrego em L1
+			if(cache_L2[set].blocks[i].tag == tag)
+			{
+				//escreve o bloco de L2 em L1
+				writeSetOfWordsOnCache(addr, cache_L2[set].blocks[i].words, L2, L1);
+
+				return 1;
+
+			}
+		}
+
+
+
+
+	}
+	return 1;
+}
+
+
+/*Escreve o conjunto de words (array words*) do cache nível
+ * cachelevel -1 para o cache nível cachelevel
+ *
+ */
+int writeSetOfWordsOnCache(int addr, unsigned  int *words, int cachelevel_src, int cachelevel_dst)
+{
+	int set, tag, word_offset, word_offset2;
+	int i, j, ret, pos_ini;
+	unsigned char word_array[4];
+
+
+	/* words devem ir de L2 para L1*/
+	if(cachelevel_src == L2 && cachelevel_dst == L1)
+	{
+		//calcula tag, set e word_offset de L1
+		tag = addr >> 3;
+		set = (addr & 0x06) >> 1;
+		word_offset = addr & 0x01;
+
+		//word_offste de L2
+		word_offset2 = addr & 0x03;
+
+		//posicao inicial depende dos offsets
+		if(word_offset2 > 2) pos_ini = 2;
+		else pos_ini = 0;
+
+		/*L1 usa política de substituicao FIFO
+		 * Verifica se conjunto está vazio pelo bit
+		 * de validade
+		 * */
+
+
+		for(i = 0; i < BLOCKS_L1; i++)
+		{
+
+			/*Se o bit de validade é zero, significa que
+			 * o conjunto está vazio. Logo, podemos
+			 * colocar nossas words
+			 */
+
+			if(cache_L1[set].blocks[i].valid == 0)
+			{
+				//escreve o bloco de L2 em L1
+				//seta bit de validade
+				cache_L1[set].blocks[i].valid = 1;
+
+				//seta tag
+				cache_L1[set].blocks[i].tag = tag;
+
+
+				//seta words
+				for(j = 0; j < WORDS_L1; j++)
+				{
+					cache_L1[set].blocks[i].words[j] = words[pos_ini + j];
+
+				}
+
+				/*seta os bits de substituicao (politica FIFO)
+				 */
+				if(i != 0)
+				{
+					cache_L1[set].blocks[i].subst = 0;
+					cache_L1[set].blocks[0].subst = 1;
+
+				} else //i == 0
+					if(cache_L1[set].blocks[i+1].valid == 1)
+					{
+
+						cache_L1[set].blocks[i+1].subst = 1;
+						cache_L1[set].blocks[i].subst = 0;
+
+
+					}
+
+
+				return 1;
+
+			}
+
+		}
+
+		/*Neste ponto a conjunto está ocupado
+		 * como a substituicao é FIFO
+		 * verificaremos o bit subs
+		 */
+
+		for(i = 0; i < BLOCKS_L1; i++)
+		{
+			if(cache_L1[set].blocks[i].valid == 1 &&
+					cache_L1[set].blocks[i].subst == 1)
+			{
+
+				//escreve words de L1 pra L2
+				writeSetOfWordsOnCache(addr, cache_L1[set].blocks[i].words, L1, L2);
+
+				//escreve as words atuais
+				for(j = 0; j < WORDS_L1; j++)
+				{
+					cache_L1[set].blocks[i].words[j] = words[pos_ini + j];
+
+				}
+
+				return 1;
+
+			}
+
+
+
+
+		}
+
+
+
+
+
+
+
+	}
+	return 1;
 
 }
 

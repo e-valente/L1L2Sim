@@ -48,4 +48,16 @@ int readMemory(int addr, int *data, int cachelevel);
 int writeMemory(int addr, int *data, int cachelevel);
 
 
+/*carrega conjunto de words do nível cachelevel -1
+ * para o nível cachelevel
+ */
+int loadSetOfWordsOnCache(int addr, int cachelevel);
+
+/*Escreve o conjunto de words (array words*) do cache nível
+ * cachelevelsrc  para o cache nível cachelevel_dst
+ *
+ */
+int writeSetOfWordsOnCache(int addr,unsigned int *words, int cachelevel_src, int cachelevel_dst);
+
+
 #endif
