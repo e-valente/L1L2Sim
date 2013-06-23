@@ -71,7 +71,8 @@ int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst);
  */
 
 
-int wichBlock(int addr, int cachelevel);
+int wichBlockFree(int addr, int cachelevel);
+int wichBlockContainTag(int addr, int cachelevel);
 
 void parseAddr(int addr, int cachelevel, int *tag, int *set, int *word_offset);
 int getRAMWordFromBlock(int addr, int word_offset);

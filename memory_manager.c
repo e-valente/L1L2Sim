@@ -17,19 +17,14 @@
 int memory_access(int addr, int *data, int type) {
 	/* Seu codigo comeca aqui :) */
 
-	int ret;
 	unsigned char bytes[4];
 	int i;
 	int num = *data;
 
 	if(type == 0)
 	{
-		printf("Leitura....\n");
-
 		//comeca a ler do nível mais alto
 		return readMemory(addr, data, L1);
-
-
 	}
 
 
@@ -66,9 +61,6 @@ int memory_access(int addr, int *data, int type) {
 
 int readMemory(int addr, int *data, int cachelevel)
 {
-	int set, tag, word_offset;
-	int i, ret;
-
 	//lendo em L1
 	if(cachelevel == L1)
 	{
@@ -94,17 +86,12 @@ int readMemory(int addr, int *data, int cachelevel)
 
 		//tag nao esta em L1 e nem em L2
 		//carregamos da RAM para L2 e de L2 para L1
-		printf("carregando da ram\n");
 		loadSetOfWordsOnCache(addr, RAM, L2);
-		//loadSetOfWordsOnCache(addr, L2, L1);
+		loadSetOfWordsOnCache(addr, L2, L1);
 
-		//escreve word em L1
+		//le word em L1
 		*data = readWord(addr, data, L1);
 		return 1;
-
-
-
-
 
 
 	}
@@ -120,11 +107,6 @@ int readMemory(int addr, int *data, int cachelevel)
 
 int writeMemory(int addr, int *data, int cachelevel)
 {
-	int set, tag, word_offset;
-	int i, ret;
-	unsigned char word_array[4];
-
-
 	//lendo em L1
 	if(cachelevel == L1)
 	{
@@ -155,7 +137,6 @@ int writeMemory(int addr, int *data, int cachelevel)
 		return writeWord(addr, data, L1);
 
 
-
 	}
 
 
@@ -183,13 +164,13 @@ int writeWord(int addr, int *data, int cachelevel)
 		{
 			if(cache_L1[set].blocks[i].tag == tag)
 			{
+				//seta tag validade
+				cache_L1[set].blocks[i].valid = 1;
 				cache_L1[set].blocks[i].words[word_offset] = *data;
 				/*politica de L1 é WT, portanto, garantimos
 				 * que o tag está em L2
 				 */
 				return writeWord(addr, data, L2);
-
-
 			}
 
 		}
@@ -210,6 +191,9 @@ int writeWord(int addr, int *data, int cachelevel)
 		{
 			if(cache_L2[set].blocks[i].tag == tag)
 			{
+				//seta o bit modificado (m)
+
+				cache_L2[set].blocks[i].modified = 1;
 				cache_L2[set].blocks[i].words[word_offset] = *data;
 				return 1;
 			}
@@ -221,6 +205,7 @@ int writeWord(int addr, int *data, int cachelevel)
 	}
 
 
+	return -1;
 
 }
 
@@ -230,13 +215,11 @@ int writeWord(int addr, int *data, int cachelevel)
  */
 int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst)
 {
-	int set, tag, word_offset, word_offset2;
-	int i, j, ret, pos_ini;
-	unsigned char word_array[4];
-
 	int set_src, tag_src, word_offset_src;
 	int set_dst, tag_dst, word_offset_dst;
 	int block_src, block_dst;
+	int i, j, pos_ini, myword;
+	unsigned char bytes[4];
 
 
 
@@ -261,15 +244,30 @@ int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst)
 		fprintf(stderr,"word_offset_src: %d word_offset_dst %d pos_ini %d\n", word_offset_src, word_offset_dst, pos_ini);
 		//return 1;
 
-		block_src = wichBlock(addr, L2);
-		block_dst = wichBlock(addr, L1);
+		block_src = wichBlockContainTag(addr, L2);
+		block_dst = wichBlockFree(addr, L1);
 
+		//bloco livre é o da direta, portanto
+		//podemos excluir o da direita da proxima vez
+		//setando o bit de substituicao
+		if(block_dst > 1)
+		{
+			cache_L1[set_dst].blocks[0].subst = 1;
+
+		}
 
 		//grava tag
-		cache_L1[set_dst].blocks[0].tag = tag_dst;
+		cache_L1[set_dst].blocks[block_dst].tag = tag_dst;
+		//seta bit validade
+		cache_L1[set_dst].blocks[block_dst].valid = 1;
+
+		//zera bit de substituicao
+		cache_L1[set_dst].blocks[block_dst].subst = 0;
+
+
 		for(j = 0; j < WORDS_L1; j++)
 		{
-			cache_L1[set_dst].blocks[0].words[j] = cache_L2[set_src].blocks[block_src].words[pos_ini + j];
+			cache_L1[set_dst].blocks[block_dst].words[j] = cache_L2[set_src].blocks[block_src].words[pos_ini + j];
 
 
 		}
@@ -291,22 +289,87 @@ int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst)
 		//return 1;
 
 		//block_src = wichBlock(addr, L2);
-		block_dst = wichBlock(addr, L2);
+		block_dst = wichBlockFree(addr, L2);
 
 
+		//bloco livre é o da direta, portanto
+		//podemos excluir o da direita da proxima vez
+		//setando o bit de substituicao
+		if(block_dst > 1)
+		{
+			cache_L2[set_dst].blocks[0].subst = 1;
+
+		}
+
+
+		/*Antes de escrever, devemos verificar
+		 * se o bit M está modificado. Caso esteja,
+		 * devemos escrever o conteudo de L2 pra RAM
+		 */
+		if(cache_L2[set_dst].blocks[block_dst].modified == 1)
+		{
+			loadSetOfWordsOnCache(addr, L2, RAM);
+
+			//limpa bit modificado
+			cache_L2[set_dst].blocks[block_dst].modified = 0;
+
+
+		}
 
 		//grava tag
-		cache_L2[set_dst].blocks[0].tag = tag_dst;
+		cache_L2[set_dst].blocks[block_dst].tag = tag_dst;
+
+		//grava bit de validade
+		cache_L2[set_dst].blocks[block_dst].valid = 1;
+
+
+		//zera bit de substituicao
+		cache_L2[set_dst].blocks[block_dst].subst = 0;
+
 		for(j = 0; j < WORDS_L2; j++)
 		{
 			printf("escrevendo em L2: %d\n",  getRAMWordFromBlock(addr, j));
-			cache_L2[set_dst].blocks[0].words[j] = getRAMWordFromBlock(addr, j);
+			cache_L2[set_dst].blocks[block_dst].words[j] = getRAMWordFromBlock(addr, j);
 
 
 		}
 
 		return 1;
 
+
+	}
+
+
+
+	if(cachelevel_src == L2 && cachelevel_dst == RAM)
+	{
+
+		//calcula tag, set e word_offset de L2
+		parseAddr(addr, L2, &tag_src, &set_src, &word_offset_src);
+
+		block_src = wichBlockContainTag(addr, L2);
+
+		//le bloco
+		for(i = 0; i < WORDS_L2; i++)
+		{
+			myword = cache_L2[set_src].blocks[block_src].words[i];
+			//laco pra configurar a palavra (dividir em 4 bytes)
+			//a ser gravada no vetor da memoria
+			for(j = 0; j < 4; j++)
+			{
+				bytes[j] = myword & 0xFF;
+				//printf("byte %d = %d\n", j, bytes[j]);
+				myword >>= 8;
+
+			}
+
+			j = (addr + i) * 4;
+			memory[j] = bytes[3];
+			memory[j+1] = bytes[2];
+			memory[j+2] = bytes[1];
+			memory[j+3] = bytes[0];
+
+		}
 
 	}
 
@@ -319,7 +382,57 @@ int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst)
 
 
 
-int wichBlock(int addr, int cachelevel)
+int wichBlockFree(int addr, int cachelevel)
+{
+	int set, tag, word_offset;
+	int i;
+
+	//lendo em L1
+	if(cachelevel == L1)
+	{
+
+		//obtem tag, set e word_offset de L1
+		parseAddr(addr, L1, &tag, &set, &word_offset);
+
+		for(i = 0; i < BLOCKS_L1; i++)
+		{
+			if(cache_L1[set].blocks[i].valid == 0 ||
+					cache_L1[set].blocks[i].subst == 1) return i;
+
+		}
+
+		return -1;
+
+	}
+
+
+	//lendo em L2
+	if(cachelevel == L2)
+	{
+
+		//obtem tag, set e word_offset de L1
+		parseAddr(addr, L2, &tag, &set, &word_offset);
+
+
+		for(i = 0; i < BLOCKS_L2; i++)
+		{
+			if(cache_L2[set].blocks[i].valid == 0 ||
+					cache_L2[set].blocks[i].subst == 1) return i;
+
+		}
+
+		return -1;
+
+	}
+
+
+
+	return -1;
+
+}
+
+
+int wichBlockContainTag(int addr, int cachelevel)
 {
 	int set, tag, word_offset;
 	int i;
@@ -359,6 +472,7 @@ int wichBlock(int addr, int cachelevel)
 	return -1;
 
 }
+
 
 void parseAddr(int addr, int cachelevel, int *tag, int *set, int *word_offset)
 {
@@ -455,7 +569,11 @@ int readWord(int addr, int *data, int cachelevel)
 		for(i = 0; i < BLOCKS_L1; i++)
 		{
 			if(cache_L1[set].blocks[i].tag == tag)
+			{
+				//seta tag validade
+				cache_L1[set].blocks[i].valid = 1;
 				return cache_L1[set].blocks[i].words[word_offset];
+			}
 		}
 
 		return -1;
@@ -469,7 +587,7 @@ int readWord(int addr, int *data, int cachelevel)
 
 int getRAMWordFromBlock(int addr, int word_offset)
 {
-	int i, block, index, myword;
+	int index, myword;
 	unsigned char bytes[4];
 
 	//word_offset nao interessa
@@ -493,7 +611,7 @@ int getRAMWordFromBlock(int addr, int word_offset)
 			((unsigned int)bytes[2] << 8) + ((unsigned int)bytes[3]);
 
 
-//	printf("myword vale: %d\n", myword);
+	//	printf("myword vale: %d\n", myword);
 
 
 
