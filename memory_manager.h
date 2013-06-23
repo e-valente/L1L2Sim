@@ -47,17 +47,34 @@ int memory_access(int addr, int *data, int type);
 int readMemory(int addr, int *data, int cachelevel);
 int writeMemory(int addr, int *data, int cachelevel);
 
+/*verifica se a tag esta na cache de nível cachelevel*/
+int isTagOnCache(int addr, int cachelevel);
 
-/*carrega conjunto de words do nível cachelevel -1
- * para o nível cachelevel
+/*le a palavra na cache
+ * ATENCAO: Essa funcao só é usada para ler
+ * o nível mais alto (perto do processador)
+ * Neste trabalho é o nível L1
  */
-int loadSetOfWordsOnCache(int addr, int cachelevel);
+int readWord(int addr, int *data, int cachelevel);
+
+int writeWord(int addr, int *data, int cachelevel);
+
+
+/*carrega conjunto de words do nível cachelevel_src
+ * para o nível cachelevel_dst
+ */
+int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst);
 
 /*Escreve o conjunto de words (array words*) do cache nível
  * cachelevelsrc  para o cache nível cachelevel_dst
  *
  */
-int writeSetOfWordsOnCache(int addr,unsigned int *words, int cachelevel_src, int cachelevel_dst);
+
+
+int wichBlock(int addr, int cachelevel);
+
+void parseAddr(int addr, int cachelevel, int *tag, int *set, int *word_offset);
+int getRAMWordFromBlock(int addr, int word_offset);
 
 
 #endif
