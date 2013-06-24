@@ -167,6 +167,7 @@ int main(int argc, char *argv[]) {
 	 * testado
 	 */
 	//end 200
+	/*
 	cache_L1[0].blocks[0].tag = 25;
 	cache_L1[0].blocks[0].words[0] = 14;
 
@@ -187,6 +188,7 @@ int main(int argc, char *argv[]) {
 	cache_L2[1].blocks[0].words[1] = 2290;
 	cache_L2[1].blocks[0].words[2] = 2300;
 	cache_L2[1].blocks[0].words[3] = 2310;
+	*/
 
 
 	//fim do teste

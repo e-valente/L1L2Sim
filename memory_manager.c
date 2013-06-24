@@ -1,18 +1,41 @@
-/*
- * ATENCAO: NAO ALTERAR OS ARQUIVO "main.c" e "memory_manager.h"
- * Seu trabalho deve ser desenvolvido neste arquivo "memory_manager.c"
- * a partir da funcao memory_access(int addr, int *data, int type).
- *
- * Para compilar o projeto execute o comando
- *     make
- * Para executar digite o comando:
- *    ./main
- *
- * */
+/*Grupo 5
+*Turma2 - Grupo5
+*
+*Alunos:
+*Bruno Azenha
+*Emanuel Valente
+*Vinícius Katata
+*
+* * */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include "memory_manager.h"
+
+/*constantes que serao usadas
+ * no acesso à memoria
+ */
+
+#define L1 1
+#define L2 2
+#define RAM 3
+
+
+/*Protótipos das funcoes */
+int memory_access(int addr, int *data, int type);
+int readMemory(int addr, int *data, int cachelevel);
+int writeMemory(int addr, int *data, int cachelevel);
+int isTagOnCache(int addr, int cachelevel);
+int readWord(int addr, int *data, int cachelevel);
+int writeWord(int addr, int *data, int cachelevel);
+int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst);
+int wichBlockFree(int addr, int cachelevel);
+int wichBlockContainTag(int addr, int cachelevel);
+void parseAddr(int addr, int cachelevel, int *tag, int *set, int *word_offset);
+int getRAMWordFromBlock(int addr, int word_offset);
+
+
+/*Inicio das implementações*/
 
 int memory_access(int addr, int *data, int type) {
 	/* Seu codigo comeca aqui :) */
@@ -30,42 +53,27 @@ int memory_access(int addr, int *data, int type) {
 
 	if(type ==1)
 	{
-		printf("Escrita..\n");
-
 		//escreve em memória cache,
 		//iniciando pelo nível L1
 		return writeMemory(addr, data, L1);
-
-		for(i = 0; i < 4; i++)
-		{
-			bytes[i] = num & 0xFF;
-			printf("byte %d = %d\n", i, bytes[i]);
-			num >>= 8;
-
-		}
-
-		i = addr * 4;
-		memory[i] = bytes[3];
-		memory[1+1] = bytes[2];
-		memory[i+2] = bytes[1];
-		memory[i+3] = bytes[0];
-
-		return 1;
-
 	}
-
 
 	return -1;
 }
 
-
+/*Le palavra a partir do nível cachelevel
+ * Se a palavra nao estiver no nível atual, a rotina busca
+ * o bloco no  nível abaixo de de maneira recursiva
+ * até a memoria principal, caso  seja necessário.
+ * Retorna 1 em sucesso e -1 se houver falha.
+ */
 int readMemory(int addr, int *data, int cachelevel)
 {
 	//lendo em L1
 	if(cachelevel == L1)
 	{
 
-		//printf("tag %d set %d word_offset: %d\n", tag, set, word_offset);
+
 		if(isTagOnCache(addr, L1) == 1)
 		{
 			*data = readWord(addr, data, L1);
@@ -104,7 +112,12 @@ int readMemory(int addr, int *data, int cachelevel)
 }
 
 
-
+/*Escreve palavra a partir do nível cachelevel
+ * Se a palavra nao estiver no nível atual, a rotina busca
+ * o bloco no  nível abaixo de de maneira recursiva
+ * até a memoria principal, caso  seja necessário.
+ * Retorna 1 em sucesso e -1 se houver falha.
+ */
 int writeMemory(int addr, int *data, int cachelevel)
 {
 	//lendo em L1
@@ -191,8 +204,9 @@ int writeWord(int addr, int *data, int cachelevel)
 		{
 			if(cache_L2[set].blocks[i].tag == tag)
 			{
-				//seta o bit modificado (m)
+				//seta o bit de validade e modificado (m)
 
+				cache_L2[set].blocks[i].valid = 1;
 				cache_L2[set].blocks[i].modified = 1;
 				cache_L2[set].blocks[i].words[word_offset] = *data;
 				return 1;
@@ -209,9 +223,8 @@ int writeWord(int addr, int *data, int cachelevel)
 
 }
 
-/*Escreve o conjunto de words (array words*) do cache nível
- * cachelevel -1 para o cache nível cachelevel
- *
+/*carrega conjunto de words do nível cachelevel_src
+ * para o nível cachelevel_dst
  */
 int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst)
 {
@@ -240,9 +253,6 @@ int loadSetOfWordsOnCache(int addr, int cachelevel_src, int cachelevel_dst)
 		 * Verifica se conjunto está vazio pelo bit
 		 * de validade
 		 * */
-
-		fprintf(stderr,"word_offset_src: %d word_offset_dst %d pos_ini %d\n", word_offset_src, word_offset_dst, pos_ini);
-		//return 1;
 
 		block_src = wichBlockContainTag(addr, L2);
 		block_dst = wichBlockFree(addr, L1);
@@ -504,6 +514,9 @@ void parseAddr(int addr, int cachelevel, int *tag, int *set, int *word_offset)
 }
 
 
+
+/*verifica se a tag esta na cache
+ * de nível cachelevel*/
 int isTagOnCache(int addr, int cachelevel)
 {
 
@@ -552,7 +565,11 @@ int isTagOnCache(int addr, int cachelevel)
 }
 
 
-/*somente lê word do nível L1*/
+/*le a palavra na cache
+ * ATENCAO: Essa funcao só é usada para ler
+ * o nível mais alto (perto do processador)
+ * Neste trabalho é o nível L1
+ */
 int readWord(int addr, int *data, int cachelevel)
 {
 	int set, tag, word_offset;
@@ -609,10 +626,6 @@ int getRAMWordFromBlock(int addr, int word_offset)
 
 	myword = ((unsigned int)bytes[0] << 24) + ((unsigned int)bytes[1] << 16) +
 			((unsigned int)bytes[2] << 8) + ((unsigned int)bytes[3]);
-
-
-	//	printf("myword vale: %d\n", myword);
-
 
 
 	return myword;
